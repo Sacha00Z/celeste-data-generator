@@ -15,6 +15,8 @@
 
 A Python CLI tool for generating Celeste demo JSON data and optionally sending it to Evolve Generate Batch, Generate OnDemand, or Front Office ticket APIs.
 
+![Front Office ticket dashboard showing generated Celeste tickets](assets/front-office-ticket-dashboard.png)
+
 ## Features
 
 - Generates Celeste-compatible Australian client data

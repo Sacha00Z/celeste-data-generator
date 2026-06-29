@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .DS_Store
 .vscode/
+FireShot Capture*.png
 output/
 samples/
 environment.local.yaml
