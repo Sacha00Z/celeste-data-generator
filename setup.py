@@ -92,7 +92,7 @@ def main() -> int:
         print("Dry run only. No API calls or file writes were made.")
         return 0
 
-    if confirm("Deploy working folder and pipelines now?", default=True):
+    if confirm("Create the working folder and create or overwrite these Evolve pipelines now?", default=True):
         working_folder_id = create_working_folder(config, answers)
         print(f"Created working folder: {working_folder_id}")
         deploy_pipeline(config, build_print_pipeline(answers, working_folder_id))
@@ -285,9 +285,17 @@ def collect_answers() -> dict[str, Any]:
         validate_path_segment,
     )
     pipeline_folder = prompt("Pipeline folder", initials, validate_pipeline_path)
-    print_pipeline = prompt("Print pipeline name", f"{pipeline_folder}/Celeste Print", validate_pipeline_path)
-    email_pipeline = prompt("Email pipeline name", f"{pipeline_folder}/Celeste Email", validate_pipeline_path)
-    working_folder = prompt("Working folder name", f"{initials} Celeste", validate_working_folder_name)
+    print_pipeline = prompt(
+        "Evolve Print pipeline to create or overwrite",
+        f"{pipeline_folder}/Celeste Print",
+        validate_pipeline_path,
+    )
+    email_pipeline = prompt(
+        "Evolve Email pipeline to create or overwrite",
+        f"{pipeline_folder}/Celeste Email",
+        validate_pipeline_path,
+    )
+    working_folder = prompt("Evolve working folder to create", f"{initials} Celeste", validate_working_folder_name)
     retention_days = prompt_int("Working folder retention days", 90, minimum=1)
     output_share_path = prompt(
         "Print output share path",
@@ -322,16 +330,17 @@ def collect_answers() -> dict[str, Any]:
 
 def preview(answers: dict[str, Any], request_dir: Path) -> None:
     print()
-    print("Planned setup")
+    print("Planned Evolve deployment")
     print(json.dumps(
         {
-            "workingFolderName": answers["working_folder"],
-            "printPipeline": answers["print_pipeline"],
-            "emailPipeline": answers["email_pipeline"],
+            "createWorkingFolder": answers["working_folder"],
+            "createOrOverwritePrintPipeline": answers["print_pipeline"],
+            "createOrOverwriteEmailPipeline": answers["email_pipeline"],
             "requestFiles": [str(request_dir / profile["path"]) for profile in REQUEST_PROFILES],
         },
         indent=2,
     ))
+    print("If the named pipelines already exist, createOrUpdateProcessingPipeline will update them.")
     print()
 
 

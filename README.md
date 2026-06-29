@@ -62,7 +62,7 @@ python3 -m pip install -r requirements.txt
 python3 setup.py
 ```
 
-`setup.py` prompts only for missing local environment values, then confirms the user-owned Generate folder and pipeline names. It can create a working folder, deploy `Celeste Print` and `Celeste Email` pipelines, and write request YAML files using your own pipeline paths.
+`setup.py` prompts only for missing local environment values, then asks which Evolve working folder and pipelines to create. If the named pipelines already exist, setup updates them. It can create a working folder, deploy `Celeste Print` and `Celeste Email` pipelines, and write request YAML files using your own pipeline paths.
 
 ### 3. Generate data or call APIs
 
