@@ -29,28 +29,44 @@ A Python CLI tool for generating Celeste demo JSON data and optionally sending i
 
 ## Before You Start
 
-API modes require access to an Evolve environment with suitable API permissions and configured Celeste-compatible templates or pipelines.
+API modes require access to an Evolve environment with suitable API permissions. Before running setup, have these values ready:
 
-Create a local environment file before calling APIs:
+- Evolve endpoint
+- Evolve API key
+- Front Office ticket holder
+- Azure Blob container SAS URI
+- optional test email recipients
 
-```bash
-cp environment.yaml environment.local.yaml
-```
+The setup script creates or updates ignored local files for you:
 
-Then edit `environment.local.yaml` and set your endpoint, API key, ticket holder, Azure Blob SAS URI, and test email recipients. The local file is ignored by git.
+- `environment.local.yaml` for credentials and local environment settings
+- request YAML files that point to your own Generate pipeline folder
 
-To deploy your own Celeste pipeline folder and write local request profiles:
-
-```bash
-python3 setup_celeste_environment.py
-```
-
-The setup helper prompts for your initials or folder name, creates a Generate working folder, creates or updates `Celeste Print` and `Celeste Email` pipelines, and writes request YAML files that point at your own pipeline paths.
+Real credentials, SAS URIs, generated output, and local request overrides should stay out of commits.
 
 ## Installation
 
+Run the setup in order:
+
+### 1. Install dependencies
+
 ```bash
 python3 -m pip install -r requirements.txt
+```
+
+### 2. Create local config and pipelines
+
+```bash
+python3 setup.py
+```
+
+`setup.py` prompts only for missing local environment values, then confirms the user-owned Generate folder and pipeline names. It can create a working folder, deploy `Celeste Print` and `Celeste Email` pipelines, and write request YAML files using your own pipeline paths.
+
+### 3. Generate data or call APIs
+
+```bash
+python3 generate_celeste_data.py 5
+python3 generate_celeste_data.py 5 --mode gb --request requestLoanOffer.yaml
 ```
 
 ## Configuration
@@ -151,7 +167,7 @@ python3 generate_celeste_data.py 2 --mode fo --request requestInvestment.yaml
 python3 generate_celeste_data.py 5 --mode gb --request requestLoanOffer.yaml
 python3 generate_celeste_data.py 5 --seed 1 # Repeatable generated data for testing
 python3 generate_celeste_data.py 5 --output-dir /tmp/celeste-output
-python3 setup_celeste_environment.py --dry-run
+python3 setup.py --dry-run
 python3 generate_celeste_data.py --help
 ```
 

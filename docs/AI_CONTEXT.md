@@ -21,13 +21,13 @@ Configuration is intentionally split:
 - `environment.local.yaml`: ignored local file with real endpoint, API key, SAS URI, ticket holder.
 - `request.yaml`: default template/request profile.
 - `request*.yaml`: optional alternative request profiles for other templates.
-- `setup_celeste_environment.py`: interactive helper that creates a user-owned Generate working folder, deploys user-namespaced Celeste Print/Email pipelines, and writes request YAML files.
+- `setup.py`: interactive helper that creates or updates ignored local environment settings, creates a user-owned Generate working folder, deploys user-namespaced Celeste Print/Email pipelines, and writes request YAML files.
 
 Environment settings include endpoint, API key, ticket holder, Azure Blob SAS URI, test email recipients, and simulator email domain. Request settings include template path, output filename, pipeline names, filename correlation behavior, and Front Office production actions.
 
 The script prefers `environment.local.yaml` when it exists. Public repos should contain only placeholder secrets.
 
-Publishable request YAML files should not point at a contributor's personal pipeline folder. Use placeholders such as `YOUR_INITIALS/Celeste Print`, or have users run `setup_celeste_environment.py` to create local request files for their own pipeline folder.
+Publishable request YAML files should not point at a contributor's personal pipeline folder. Use placeholders such as `YOUR_INITIALS/Celeste Print`, or have users run `setup.py` to create local request files for their own pipeline folder.
 
 Publishable `environment.yaml` should use placeholder test recipients. Real test inboxes belong in ignored `environment.local.yaml`.
 

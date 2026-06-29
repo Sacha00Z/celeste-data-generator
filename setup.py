@@ -4,22 +4,35 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from generate_celeste_data import (
+    AppConfig,
+    DEFAULT_ENVIRONMENT_PATH,
     GENERATE_API_BASE_PATH,
+    LOCAL_ENVIRONMENT_PATH,
     api_key_for,
     build_url,
-    default_environment_path,
     load_config,
     send_request,
 )
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_EMAIL_RECIPIENTS = ["celeste-demo-gmail@example.com", "celeste-demo-outlook@example.com"]
+DEFAULT_SIMULATOR_DOMAIN = "simulator.quadientcloud.com"
+PLACEHOLDER_MARKERS = (
+    "replace-with",
+    "your-",
+    "example.com",
+    "storage-account.blob",
+    "container-name",
+)
 
 TEMPLATE_INVESTMENT = (
     "icm:S:Production:S:UserResource//Interactive/StandardPackage/"
@@ -57,11 +70,16 @@ REQUEST_PROFILES = [
 
 def main() -> int:
     args = parse_args()
-    config = load_config(args.environment, SCRIPT_DIR / "request.yaml")
+    environment_path, dry_run_environment = prepare_environment(args.environment, args.dry_run)
+    config = (
+        setup_config_from_environment(dry_run_environment)
+        if dry_run_environment is not None
+        else load_config(environment_path, SCRIPT_DIR / "request.yaml")
+    )
     evolve = config.environment["evolve"]
 
     print("Celeste environment setup")
-    print(f"Environment: {args.environment}")
+    print(f"Environment: {environment_path}")
     print(f"Endpoint: {evolve.get('endpoint', '')}")
     print()
 
@@ -94,8 +112,8 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--environment",
         type=Path,
-        default=default_environment_path(),
-        help="Environment YAML file. Defaults to environment.local.yaml when present.",
+        default=LOCAL_ENVIRONMENT_PATH,
+        help="Local environment YAML file to create or update. Defaults to environment.local.yaml.",
     )
     parser.add_argument(
         "--request-dir",
@@ -109,6 +127,153 @@ def parse_args() -> argparse.Namespace:
         help="Show the resolved setup values without calling APIs or writing files.",
     )
     return parser.parse_args()
+
+
+def prepare_environment(path: Path, dry_run: bool) -> tuple[Path, dict[str, Any] | None]:
+    try:
+        import yaml
+    except ImportError as exc:
+        raise SystemExit("Missing dependency: install PyYAML with 'python3 -m pip install -r requirements.txt'.") from exc
+
+    path = path.resolve()
+    existed = path.exists()
+    source = path if existed else DEFAULT_ENVIRONMENT_PATH
+    environment = load_environment_template(source, yaml)
+
+    changed = False
+    if not existed:
+        print(f"Creating {path} from environment.yaml defaults.")
+        changed = True
+
+    changed |= ensure_string(environment, ["evolve", "endpoint"], "Evolve endpoint")
+    changed |= ensure_string(environment, ["evolve", "api_key"], "Evolve API key", secret=True)
+    changed |= ensure_string(environment, ["evolve", "ticket_holder"], "Front Office ticket holder")
+    changed |= ensure_string(environment, ["azure_blob", "sas_uri"], "Azure Blob container SAS URI")
+    changed |= ensure_list(environment, ["email", "test_recipients"], "Test email recipients", DEFAULT_EMAIL_RECIPIENTS)
+    changed |= ensure_string(
+        environment,
+        ["email", "simulator_domain"],
+        "Simulator email domain",
+        default=DEFAULT_SIMULATOR_DOMAIN,
+        allow_placeholder=True,
+    )
+
+    if changed:
+        if dry_run:
+            print(f"Dry run: would write {path}.")
+            return path, environment
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as environment_file:
+            yaml.safe_dump(environment, environment_file, sort_keys=False)
+        print(f"Wrote {path}")
+
+    return path, None
+
+
+def setup_config_from_environment(environment: dict[str, Any]) -> AppConfig:
+    try:
+        import yaml
+    except ImportError as exc:
+        raise SystemExit("Missing dependency: install PyYAML with 'python3 -m pip install -r requirements.txt'.") from exc
+
+    with (SCRIPT_DIR / "request.yaml").open("r", encoding="utf-8") as request_file:
+        request_config = yaml.safe_load(request_file) or {}
+    if not isinstance(request_config, dict):
+        raise SystemExit("Request file must contain a YAML mapping: request.yaml")
+    ticket_holder = nested_get(environment, ["evolve", "ticket_holder"])
+    if not isinstance(ticket_holder, str) or not ticket_holder.strip():
+        raise SystemExit("Config key 'environment.evolve.ticket_holder' must be a non-empty string.")
+    return AppConfig(ticket_holder=ticket_holder.strip(), environment=environment, request=request_config)
+
+
+def load_environment_template(path: Path, yaml: Any) -> dict[str, Any]:
+    if path.exists():
+        with path.open("r", encoding="utf-8") as environment_file:
+            raw = yaml.safe_load(environment_file) or {}
+    else:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise SystemExit(f"Environment file must contain a YAML mapping: {path}")
+    return raw
+
+
+def ensure_string(
+    environment: dict[str, Any],
+    keys: list[str],
+    label: str,
+    *,
+    default: str = "",
+    secret: bool = False,
+    allow_placeholder: bool = False,
+) -> bool:
+    current = nested_get(environment, keys)
+    if isinstance(current, str) and current.strip() and (allow_placeholder or not is_placeholder(current)):
+        return False
+
+    suggested = current if isinstance(current, str) and current.strip() else default
+    value = prompt_config_value(label, suggested, secret=secret, allow_placeholder=allow_placeholder)
+    nested_set(environment, keys, value)
+    return True
+
+
+def ensure_list(
+    environment: dict[str, Any],
+    keys: list[str],
+    label: str,
+    default: list[str],
+) -> bool:
+    current = nested_get(environment, keys)
+    if isinstance(current, list) and all(isinstance(item, str) and item.strip() for item in current):
+        return False
+
+    suggested = ", ".join(default)
+    raw = prompt_config_value(label, suggested, allow_placeholder=True)
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    if not values:
+        raise SystemExit(f"{label} must contain at least one email address.")
+    nested_set(environment, keys, values)
+    return True
+
+
+def nested_get(mapping: dict[str, Any], keys: list[str]) -> Any:
+    current: Any = mapping
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def nested_set(mapping: dict[str, Any], keys: list[str], value: Any) -> None:
+    current = mapping
+    for key in keys[:-1]:
+        next_value = current.get(key)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[key] = next_value
+        current = next_value
+    current[keys[-1]] = value
+
+
+def prompt_config_value(label: str, default: str, *, secret: bool = False, allow_placeholder: bool = False) -> str:
+    while True:
+        if secret and sys.stdin.isatty():
+            value = getpass.getpass(f"{label}: ").strip()
+        else:
+            prompt_default = "" if secret else f" [{default}]"
+            value = input(f"{label}{prompt_default}: ").strip() or default
+        if not value:
+            print("Value cannot be empty.")
+            continue
+        if not allow_placeholder and is_placeholder(value):
+            print("Please enter a real local value, not the publishable placeholder.")
+            continue
+        return value
+
+
+def is_placeholder(value: str) -> bool:
+    lowered = value.lower()
+    return any(marker in lowered for marker in PLACEHOLDER_MARKERS)
 
 
 def collect_answers() -> dict[str, Any]:
