@@ -1,0 +1,7 @@
+evolve:
+  endpoint: https://your-evolve-environment.example.com/
+  api_key: replace-with-your-evolve-api-key
+  ticket_holder: user@example.com
+
+azure_blob:
+  sas_uri: https://storage-account.blob.core.windows.net/container-name?replace-with-container-sas-query

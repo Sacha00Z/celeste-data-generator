@@ -1,0 +1,14 @@
+template_path: icm:S:Production:S:UserResource//Interactive/StandardPackage/Templates/StandardDemo/Celeste/Celeste Loan Offer.jld
+output_filename: Celeste-Loan-Offer
+include_correlation_id_in_filenames: false
+
+generate:
+  on_demand:
+    pipeline_name: YOUR_INITIALS/Celeste Email
+  batch:
+    pipeline_name: YOUR_INITIALS/Celeste Email
+
+front_office:
+  production_actions:
+    - PRINT
+    - EMAIL_WITH_ATTACHMENT

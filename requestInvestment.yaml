@@ -1,0 +1,14 @@
+template_path: icm:S:Production:S:UserResource//Interactive/StandardPackage/Templates/StandardDemo/Celeste/Celeste Investment.jld
+output_filename: Celeste-Investment
+include_correlation_id_in_filenames: false
+
+generate:
+  on_demand:
+    pipeline_name: YOUR_INITIALS/Celeste Print
+  batch:
+    pipeline_name: YOUR_INITIALS/Celeste Print
+
+front_office:
+  production_actions:
+    - PRINT
+    - EMAIL_WITH_ATTACHMENT
