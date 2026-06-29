@@ -8,6 +8,8 @@ Key rules:
 
 - Do not commit real endpoints, API keys, SAS URIs, generated output, or local environment files.
 - Keep stable environment settings in `environment.local.yaml` locally; publishable defaults belong in `environment.yaml`.
+- Use `setup.py` for first-run local configuration and user-owned pipeline/request setup.
+- Keep real test email recipients in `environment.local.yaml`; publishable examples belong in `environment.yaml`.
 - Keep template/request-specific settings in request YAML files such as `request.yaml` or `requestInvestment.yaml`.
 - Preserve the generated JSON key `TicketAsignee`; the spelling matches the Celeste data definition.
 - `go` and `fo` modes intentionally cap request counts at 10.
