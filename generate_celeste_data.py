@@ -35,9 +35,9 @@ MAX_SINGLE_RECORD_API_CALLS = 10
 FRONT_OFFICE_STATE_ID = "S_simple_scenario_writer_assigned"
 FRONT_OFFICE_TICKET_ICON = "companyRoot://WebResources/TicketIcons/doc_01.png"
 PHONE_NUMBER = "+61000000000"
-GMAIL_DEMO = "celeste-demo-gmail@example.com"
-OUTLOOK_DEMO = "celeste-demo-outlook@example.com"
+DEFAULT_TEST_RECIPIENTS = ["celeste-demo-gmail@example.com", "celeste-demo-outlook@example.com"]
 SIMULATOR_DOMAIN = "simulator.quadientcloud.com"
+TEST_RECIPIENT_SLOTS = 3
 
 AU_STATES = [
     ("New South Wales", "NSW", ["Sydney", "Newcastle", "Wollongong", "Parramatta", "Dubbo"], ("2000", "2999")),
@@ -130,7 +130,7 @@ def main() -> int:
     config = load_config(args.environment, args.request)
 
     identities = load_identities(record_count, rng)
-    emails = build_email_plan(record_count, rng)
+    emails = build_email_plan(record_count, config, rng)
     payload = {
         "Clients": [
             build_client(identity, email, config.ticket_holder, rng)
@@ -697,19 +697,41 @@ def build_client(identity: Identity, email: str, ticket_holder: str, rng: random
     }
 
 
-def build_email_plan(total_records: int, rng: random.Random) -> list[str]:
-    if total_records <= 6:
-        return [[GMAIL_DEMO, OUTLOOK_DEMO][index % 2] for index in range(total_records)]
+def build_email_plan(total_records: int, config: AppConfig, rng: random.Random) -> list[str]:
+    test_recipients = email_test_recipients(config)
+    test_recipient_limit = len(test_recipients) * TEST_RECIPIENT_SLOTS
+    if total_records <= test_recipient_limit:
+        return [test_recipients[index % len(test_recipients)] for index in range(total_records)]
 
-    demo_slots = [GMAIL_DEMO] * 3 + [OUTLOOK_DEMO] * 3
+    demo_slots = [
+        recipient
+        for recipient in test_recipients
+        for _ in range(TEST_RECIPIENT_SLOTS)
+    ]
     simulator_count = total_records - len(demo_slots)
-    simulator_slots = simulator_email_plan(simulator_count, rng)
+    simulator_slots = simulator_email_plan(simulator_count, config, rng)
     emails = demo_slots + simulator_slots
     rng.shuffle(emails)
     return emails
 
 
-def simulator_email_plan(count: int, rng: random.Random) -> list[str]:
+def email_test_recipients(config: AppConfig) -> list[str]:
+    email = mapping_at(config.environment, "email", required=False)
+    recipients = email.get("test_recipients", DEFAULT_TEST_RECIPIENTS)
+    if not isinstance(recipients, list) or not all(isinstance(recipient, str) and recipient.strip() for recipient in recipients):
+        raise SystemExit("Config key 'email.test_recipients' must be a list of non-empty strings.")
+    return [recipient.strip() for recipient in recipients]
+
+
+def simulator_email_domain(config: AppConfig) -> str:
+    email = mapping_at(config.environment, "email", required=False)
+    domain = email.get("simulator_domain", SIMULATOR_DOMAIN)
+    if not isinstance(domain, str) or not domain.strip():
+        raise SystemExit("Config key 'email.simulator_domain' must be a non-empty string.")
+    return domain.strip()
+
+
+def simulator_email_plan(count: int, config: AppConfig, rng: random.Random) -> list[str]:
     if count <= 0:
         return []
 
@@ -740,7 +762,7 @@ def simulator_email_plan(count: int, rng: random.Random) -> list[str]:
         emails[index] = "delivered-linkclick"
 
     rng.shuffle(emails)
-    return [f"{email}@{SIMULATOR_DOMAIN}" for email in emails]
+    return [f"{email}@{simulator_email_domain(config)}" for email in emails]
 
 
 def take_indexes(indexes: list[int], count: int, rng: random.Random) -> list[int]:

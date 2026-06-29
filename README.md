@@ -37,7 +37,7 @@ Create a local environment file before calling APIs:
 cp environment.yaml environment.local.yaml
 ```
 
-Then edit `environment.local.yaml` and set your endpoint, API key, ticket holder, and Azure Blob SAS URI. The local file is ignored by git.
+Then edit `environment.local.yaml` and set your endpoint, API key, ticket holder, Azure Blob SAS URI, and test email recipients. The local file is ignored by git.
 
 To deploy your own Celeste pipeline folder and write local request profiles:
 
@@ -65,6 +65,18 @@ Request files such as `request.yaml`, `requestInvestment.yaml`, and `requestLoan
 - output filename base
 - Generate Batch and OnDemand pipeline names
 - optional Front Office production actions
+
+Environment email settings control generated delivery addresses:
+
+```yaml
+email:
+  test_recipients:
+    - celeste-demo-gmail@example.com
+    - celeste-demo-outlook@example.com
+  simulator_domain: simulator.quadientcloud.com
+```
+
+For small runs, records alternate through `test_recipients`. For larger runs, the generator reserves three records for each configured test recipient, then fills the rest with simulator addresses.
 
 Use `--request` to switch template profiles:
 

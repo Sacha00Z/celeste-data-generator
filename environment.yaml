@@ -5,3 +5,9 @@ evolve:
 
 azure_blob:
   sas_uri: https://storage-account.blob.core.windows.net/container-name?replace-with-container-sas-query
+
+email:
+  test_recipients:
+    - celeste-demo-gmail@example.com
+    - celeste-demo-outlook@example.com
+  simulator_domain: simulator.quadientcloud.com

@@ -23,11 +23,13 @@ Configuration is intentionally split:
 - `request*.yaml`: optional alternative request profiles for other templates.
 - `setup_celeste_environment.py`: interactive helper that creates a user-owned Generate working folder, deploys user-namespaced Celeste Print/Email pipelines, and writes request YAML files.
 
-Environment settings include endpoint, API key, ticket holder, and Azure Blob SAS URI. Request settings include template path, output filename, pipeline names, filename correlation behavior, and Front Office production actions.
+Environment settings include endpoint, API key, ticket holder, Azure Blob SAS URI, test email recipients, and simulator email domain. Request settings include template path, output filename, pipeline names, filename correlation behavior, and Front Office production actions.
 
 The script prefers `environment.local.yaml` when it exists. Public repos should contain only placeholder secrets.
 
 Publishable request YAML files should not point at a contributor's personal pipeline folder. Use placeholders such as `YOUR_INITIALS/Celeste Print`, or have users run `setup_celeste_environment.py` to create local request files for their own pipeline folder.
+
+Publishable `environment.yaml` should use placeholder test recipients. Real test inboxes belong in ignored `environment.local.yaml`.
 
 ## Generate API Behavior
 
@@ -83,6 +85,12 @@ ${pipeline.OutputFilename}
 The pipeline appends `.%e`, so `output_filename` in request YAML should be a base filename without `.pdf`.
 
 OnDemand appends the generated `ClientID` to `OutputFilename` so multiple one-client calls do not overwrite each other. Batch sends the configured base filename unchanged because one batch request produces one combined PDF.
+
+## Email Address Generation
+
+The generated `Email` field uses `environment.email.test_recipients` and `environment.email.simulator_domain`.
+
+For small runs, records alternate through `test_recipients`. For larger runs, the generator reserves three records for each configured test recipient, fills the remainder with simulator addresses, and shuffles the combined list.
 
 ## Front Office Behavior
 
