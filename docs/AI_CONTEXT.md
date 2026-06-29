@@ -33,6 +33,8 @@ Publishable `environment.yaml` should use placeholder test recipients. Real test
 
 `setup.py` should not invent per-user production configuration files that it cannot create. The Print step uses the blank/default `icm://` production configuration without prompting. The Email attachment step defaults to the shared read-only `icm://Custom Solutions/Production Configuration/SaT-Print-Multiple2.job`; the Email sending step leaves `productionConfiguration` blank by default.
 
+`setup.py` should explain why it collects local environment values and show a confirmation summary before writing local files or calling Evolve services.
+
 ## Generate API Behavior
 
 Generate calls use multipart form-data. The `json` multipart part must be sent as a file part named `json` with a filename, not as a plain form field. Evolve otherwise fails to parse `pipelineName`.

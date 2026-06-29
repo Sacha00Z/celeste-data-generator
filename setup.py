@@ -18,7 +18,6 @@ from generate_celeste_data import (
     LOCAL_ENVIRONMENT_PATH,
     api_key_for,
     build_url,
-    load_config,
     send_request,
 )
 
@@ -28,6 +27,7 @@ DEFAULT_EMAIL_RECIPIENTS = ["celeste-demo-gmail@example.com", "celeste-demo-outl
 DEFAULT_SIMULATOR_DOMAIN = "simulator.quadientcloud.com"
 PRINT_PRODUCTION_CONFIGURATION = "icm://"
 EMAIL_ATTACHMENT_PRODUCTION_CONFIGURATION = "icm://Custom Solutions/Production Configuration/SaT-Print-Multiple2.job"
+USE_COLOR = sys.stdout.isatty()
 PLACEHOLDER_MARKERS = (
     "replace-with",
     "your-",
@@ -72,38 +72,44 @@ REQUEST_PROFILES = [
 
 def main() -> int:
     args = parse_args()
-    environment_path, dry_run_environment = prepare_environment(args.environment, args.dry_run)
-    config = (
-        setup_config_from_environment(dry_run_environment)
-        if dry_run_environment is not None
-        else load_config(environment_path, SCRIPT_DIR / "request.yaml")
-    )
+    print_splash()
+    print_setup_explanation()
+
+    environment_path, environment, environment_changed = collect_environment(args.environment)
+    config = setup_config_from_environment(environment)
     evolve = config.environment["evolve"]
 
-    print("Celeste environment setup")
-    print(f"Environment: {environment_path}")
-    print(f"Endpoint: {evolve.get('endpoint', '')}")
+    print_section("Environment")
+    print_kv("Local config", str(environment_path))
+    print_kv("Evolve endpoint", str(evolve.get("endpoint", "")))
     print()
 
     answers = collect_answers()
-    preview(answers, args.request_dir)
+    preview(environment_path, environment_changed, answers, args.request_dir)
 
     if args.dry_run:
-        print("Dry run only. No API calls or file writes were made.")
+        print_success("Dry run only. No API calls or file writes were made.")
         return 0
+
+    if not confirm("Apply this setup now? This is the first point where files or services can change.", default=True):
+        print_warning("No changes were made.")
+        return 0
+
+    if environment_changed:
+        write_environment(environment_path, environment)
 
     if confirm("Create the working folder and create or overwrite these Evolve pipelines now?", default=True):
         working_folder_id = create_working_folder(config, answers)
-        print(f"Created working folder: {working_folder_id}")
+        print_success(f"Created working folder: {working_folder_id}")
         deploy_pipeline(config, build_print_pipeline(answers, working_folder_id))
         deploy_pipeline(config, build_email_pipeline(answers, working_folder_id))
     else:
-        print("Skipped deployment.")
+        print_warning("Skipped Evolve deployment.")
 
     if confirm("Write request YAML files now?", default=True):
         write_request_profiles(args.request_dir, answers)
     else:
-        print("Skipped request YAML files.")
+        print_warning("Skipped request YAML files.")
 
     return 0
 
@@ -131,12 +137,73 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def prepare_environment(path: Path, dry_run: bool) -> tuple[Path, dict[str, Any] | None]:
+def print_splash() -> None:
+    print()
+    print(color("✦ Celeste Data Generator Setup ✦", "magenta", bold=True))
+    print(color("Configure local secrets, deploy Evolve pipelines, and write request profiles.", "cyan"))
+    print()
+
+
+def print_setup_explanation() -> None:
+    print_section("What this setup collects")
+    print_bullet("Evolve endpoint and API key", "used only to call Generate setup APIs.")
+    print_bullet("Ticket holder", "used by Front Office tickets as the assigned holder.")
+    print_bullet("Azure Blob SAS URI", "validated as part of local environment configuration.")
+    print_bullet("Test email recipients", "used to route small generated runs to real test inboxes.")
+    print_bullet("Pipeline and working-folder names", "used to create or update Evolve configuration.")
+    print_info("A confirmation summary is shown before this script writes files or calls Evolve services.")
+    print()
+
+
+def print_section(label: str) -> None:
+    print(color(f"▶ {label}", "cyan", bold=True))
+
+
+def print_bullet(label: str, detail: str) -> None:
+    print(f"  {color('•', 'magenta')} {color(label, 'bold')}: {detail}")
+
+
+def print_kv(label: str, value: str) -> None:
+    print(f"  {color('→', 'cyan')} {label}: {value}")
+
+
+def print_info(message: str) -> None:
+    print(f"  {color('→', 'cyan')} {message}")
+
+
+def print_success(message: str) -> None:
+    print(f"{color('✓', 'green')} {message}")
+
+
+def print_warning(message: str) -> None:
+    print(f"{color('!', 'yellow')} {message}")
+
+
+def color(value: str, name: str, *, bold: bool = False) -> str:
+    if not USE_COLOR:
+        return value
+    codes = {
+        "bold": "1",
+        "cyan": "36",
+        "green": "32",
+        "magenta": "35",
+        "yellow": "33",
+    }
+    style_codes = []
+    if bold or name == "bold":
+        style_codes.append(codes["bold"])
+    if name != "bold":
+        style_codes.append(codes[name])
+    return f"\033[{';'.join(style_codes)}m{value}\033[0m"
+
+
+def collect_environment(path: Path) -> tuple[Path, dict[str, Any], bool]:
     try:
         import yaml
     except ImportError as exc:
         raise SystemExit("Missing dependency: install PyYAML with 'python3 -m pip install -r requirements.txt'.") from exc
 
+    print_section("Local environment values")
     path = path.resolve()
     existed = path.exists()
     source = path if existed else DEFAULT_ENVIRONMENT_PATH
@@ -144,7 +211,7 @@ def prepare_environment(path: Path, dry_run: bool) -> tuple[Path, dict[str, Any]
 
     changed = False
     if not existed:
-        print(f"Creating {path} from environment.yaml defaults.")
+        print_info(f"Will create {path} from environment.yaml defaults after confirmation.")
         changed = True
 
     changed |= ensure_string(environment, ["evolve", "endpoint"], "Evolve endpoint")
@@ -160,16 +227,19 @@ def prepare_environment(path: Path, dry_run: bool) -> tuple[Path, dict[str, Any]
         allow_placeholder=True,
     )
 
-    if changed:
-        if dry_run:
-            print(f"Dry run: would write {path}.")
-            return path, environment
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as environment_file:
-            yaml.safe_dump(environment, environment_file, sort_keys=False)
-        print(f"Wrote {path}")
+    return path, environment, changed
 
-    return path, None
+
+def write_environment(path: Path, environment: dict[str, Any]) -> None:
+    try:
+        import yaml
+    except ImportError as exc:
+        raise SystemExit("Missing dependency: install PyYAML with 'python3 -m pip install -r requirements.txt'.") from exc
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as environment_file:
+        yaml.safe_dump(environment, environment_file, sort_keys=False)
+    print_success(f"Wrote {path}")
 
 
 def setup_config_from_environment(environment: dict[str, Any]) -> AppConfig:
@@ -260,10 +330,10 @@ def nested_set(mapping: dict[str, Any], keys: list[str], value: Any) -> None:
 def prompt_config_value(label: str, default: str, *, secret: bool = False, allow_placeholder: bool = False) -> str:
     while True:
         if secret and sys.stdin.isatty():
-            value = getpass.getpass(f"{label}: ").strip()
+            value = getpass.getpass(format_prompt(label, "")).strip()
         else:
             prompt_default = "" if secret else f" [{default}]"
-            value = input(f"{label}{prompt_default}: ").strip() or default
+            value = input(format_prompt(label, prompt_default)).strip() or default
         if not value:
             print("Value cannot be empty.")
             continue
@@ -279,6 +349,9 @@ def is_placeholder(value: str) -> bool:
 
 
 def collect_answers() -> dict[str, Any]:
+    print()
+    print_section("Evolve deployment")
+    print_info("These names are used to create remote Evolve objects. Existing pipelines with the same names are updated.")
     initials = prompt(
         "User initials / pipeline folder",
         "ABC",
@@ -328,11 +401,15 @@ def collect_answers() -> dict[str, Any]:
     }
 
 
-def preview(answers: dict[str, Any], request_dir: Path) -> None:
+def preview(environment_path: Path, environment_changed: bool, answers: dict[str, Any], request_dir: Path) -> None:
     print()
-    print("Planned Evolve deployment")
+    print_section("Confirmation summary")
     print(json.dumps(
         {
+            "localEnvironmentFile": {
+                "path": str(environment_path),
+                "willWrite": environment_changed,
+            },
             "createWorkingFolder": answers["working_folder"],
             "createOrOverwritePrintPipeline": answers["print_pipeline"],
             "createOrOverwriteEmailPipeline": answers["email_pipeline"],
@@ -340,7 +417,8 @@ def preview(answers: dict[str, Any], request_dir: Path) -> None:
         },
         indent=2,
     ))
-    print("If the named pipelines already exist, createOrUpdateProcessingPipeline will update them.")
+    print_info("If the named pipelines already exist, createOrUpdateProcessingPipeline will update them.")
+    print_info("No files are written and no Evolve services are called until you confirm the next prompt.")
     print()
 
 
@@ -358,7 +436,7 @@ def create_working_folder(config: Any, answers: dict[str, Any]) -> str:
 
 def deploy_pipeline(config: Any, payload: dict[str, Any]) -> None:
     response = post_generate_json(config, "createOrUpdateProcessingPipeline", payload)
-    print(f"Deployed pipeline {payload['pipelineName']}: {json.dumps(response, indent=2)}")
+    print_success(f"Deployed pipeline {payload['pipelineName']}: {json.dumps(response, indent=2)}")
 
 
 def post_generate_json(config: Any, resource: str, payload: dict[str, Any]) -> Any:
@@ -517,17 +595,17 @@ def write_request_profiles(request_dir: Path, answers: dict[str, Any]) -> None:
         }
         target = request_dir / profile["path"]
         if target.exists() and not confirm(f"Overwrite {target}?", default=False):
-            print(f"Skipped {target}")
+            print_warning(f"Skipped {target}")
             continue
         with target.open("w", encoding="utf-8") as yaml_file:
             yaml.safe_dump(payload, yaml_file, sort_keys=False)
-        print(f"Wrote {target}")
+        print_success(f"Wrote {target}")
 
 
 def prompt(label: str, default: str, validator: Any) -> str:
     while True:
         default_hint = f" [{default}]" if default else ""
-        raw = input(f"{label}{default_hint}: ").strip()
+        raw = input(format_prompt(label, default_hint)).strip()
         value = raw or default
         error = validator(value)
         if error:
@@ -538,7 +616,7 @@ def prompt(label: str, default: str, validator: Any) -> str:
 
 def prompt_int(label: str, default: int, *, minimum: int) -> int:
     while True:
-        raw = input(f"{label} [{default}]: ").strip()
+        raw = input(format_prompt(label, f" [{default}]")).strip()
         if not raw:
             return default
         try:
@@ -555,7 +633,7 @@ def prompt_int(label: str, default: int, *, minimum: int) -> int:
 def confirm(label: str, *, default: bool) -> bool:
     suffix = "Y/n" if default else "y/N"
     while True:
-        raw = input(f"{label} [{suffix}]: ").strip().lower()
+        raw = input(format_prompt(label, f" [{suffix}]")).strip().lower()
         if not raw:
             return default
         if raw in {"y", "yes"}:
@@ -563,6 +641,10 @@ def confirm(label: str, *, default: bool) -> bool:
         if raw in {"n", "no"}:
             return False
         print("Enter yes or no.")
+
+
+def format_prompt(label: str, suffix: str) -> str:
+    return f"{color('?', 'magenta', bold=True)} {label}{suffix}: "
 
 
 def validate_non_empty(value: str) -> str | None:
