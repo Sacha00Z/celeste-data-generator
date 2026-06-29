@@ -26,6 +26,7 @@ from generate_celeste_data import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_EMAIL_RECIPIENTS = ["celeste-demo-gmail@example.com", "celeste-demo-outlook@example.com"]
 DEFAULT_SIMULATOR_DOMAIN = "simulator.quadientcloud.com"
+PRINT_PRODUCTION_CONFIGURATION = "icm://"
 EMAIL_ATTACHMENT_PRODUCTION_CONFIGURATION = "icm://Custom Solutions/Production Configuration/SaT-Print-Multiple2.job"
 PLACEHOLDER_MARKERS = (
     "replace-with",
@@ -293,7 +294,6 @@ def collect_answers() -> dict[str, Any]:
         f"share://{initials}/Celeste",
         validate_non_empty,
     )
-    print_config = prompt("Print pipeline production configuration", "icm://", validate_non_empty)
     attachment_config = prompt(
         "Email attachment production configuration",
         EMAIL_ATTACHMENT_PRODUCTION_CONFIGURATION,
@@ -314,7 +314,6 @@ def collect_answers() -> dict[str, Any]:
         "working_folder": working_folder,
         "retention_days": retention_days,
         "output_share_path": output_share_path.rstrip("/"),
-        "print_config": print_config,
         "attachment_config": attachment_config,
         "email_config": email_config,
         "create_draft": create_draft,
@@ -381,7 +380,7 @@ def build_print_pipeline(answers: dict[str, Any], working_folder_id: str) -> dic
                     "channel": "Print",
                     "outputType": "PDF",
                     "generateType": "ContentAuthor",
-                    "productionConfiguration": answers["print_config"],
+                    "productionConfiguration": PRINT_PRODUCTION_CONFIGURATION,
                     "outputModule": "",
                     "outputPath": f"{answers['output_share_path']}/${{pipeline.OutputFilename}}.%e",
                     "attachments": [],
