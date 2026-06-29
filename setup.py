@@ -26,6 +26,7 @@ from generate_celeste_data import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_EMAIL_RECIPIENTS = ["celeste-demo-gmail@example.com", "celeste-demo-outlook@example.com"]
 DEFAULT_SIMULATOR_DOMAIN = "simulator.quadientcloud.com"
+EMAIL_ATTACHMENT_PRODUCTION_CONFIGURATION = "icm://Custom Solutions/Production Configuration/SaT-Print-Multiple2.job"
 PLACEHOLDER_MARKERS = (
     "replace-with",
     "your-",
@@ -295,13 +296,13 @@ def collect_answers() -> dict[str, Any]:
     print_config = prompt("Print pipeline production configuration", "icm://", validate_non_empty)
     attachment_config = prompt(
         "Email attachment production configuration",
-        f"icm://Custom Solutions/Production Configuration/{initials}-Print-Multiple2.job",
+        EMAIL_ATTACHMENT_PRODUCTION_CONFIGURATION,
         validate_non_empty,
     )
     email_config = prompt(
-        "Email production configuration",
-        f"icm://Custom Solutions/Production Configuration/{initials}/{initials} Fix Fonts.job",
-        validate_non_empty,
+        "Email production configuration (blank for none)",
+        "",
+        validate_any,
     )
     create_draft = confirm("Create pipelines as drafts?", default=False)
 
@@ -517,7 +518,8 @@ def write_request_profiles(request_dir: Path, answers: dict[str, Any]) -> None:
 
 def prompt(label: str, default: str, validator: Any) -> str:
     while True:
-        raw = input(f"{label} [{default}]: ").strip()
+        default_hint = f" [{default}]" if default else ""
+        raw = input(f"{label}{default_hint}: ").strip()
         value = raw or default
         error = validator(value)
         if error:
@@ -557,6 +559,10 @@ def confirm(label: str, *, default: bool) -> bool:
 
 def validate_non_empty(value: str) -> str | None:
     return None if value.strip() else "Value cannot be empty."
+
+
+def validate_any(value: str) -> str | None:
+    return None
 
 
 def validate_working_folder_name(value: str) -> str | None:

@@ -31,6 +31,8 @@ Publishable request YAML files should not point at a contributor's personal pipe
 
 Publishable `environment.yaml` should use placeholder test recipients. Real test inboxes belong in ignored `environment.local.yaml`.
 
+`setup.py` should not invent per-user production configuration files that it cannot create. The Email attachment step defaults to the shared read-only `icm://Custom Solutions/Production Configuration/SaT-Print-Multiple2.job`; the Email sending step leaves `productionConfiguration` blank by default.
+
 ## Generate API Behavior
 
 Generate calls use multipart form-data. The `json` multipart part must be sent as a file part named `json` with a filename, not as a plain form field. Evolve otherwise fails to parse `pipelineName`.
