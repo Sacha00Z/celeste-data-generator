@@ -113,7 +113,7 @@ The CLI has one local generation mode and three API modes.
 
 Generate API modes send the configured pipeline variables `Template` and `OutputFilename`. OnDemand adds the generated `ClientID` to `OutputFilename` for each request so multiple one-client outputs do not overwrite each other. Batch keeps the configured base filename because one batch job produces one combined output.
 
-Front Office mode embeds one generated client in each ticket request. Ticket client metadata comes from that client, while the dashboard title is derived from the template name. `productionActions` is omitted unless actions are listed in the request YAML.
+Front Office mode embeds one generated client in each ticket request. Ticket client metadata comes from that client, while the dashboard title is derived from the template name. Ticket icons are selected from the configured template/actions, with stable per-client variation. `productionActions` is omitted unless actions are listed in the request YAML.
 
 ## Basic Workflow
 
@@ -187,6 +187,7 @@ generate:
     pipeline_name: YOUR_INITIALS/Celeste Print
 
 front_office:
+  # Optional: set ticket_icon to a specific valid icon such as doc_13.png.
   production_actions:
     - PRINT
 ```

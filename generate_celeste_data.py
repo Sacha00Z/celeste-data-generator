@@ -33,7 +33,18 @@ BATCH_DATA_FILENAME = "Celeste-clients.json"
 ON_DEMAND_DATA_FILENAME_PREFIX = "Celeste-on-demand"
 MAX_SINGLE_RECORD_API_CALLS = 10
 FRONT_OFFICE_STATE_ID = "S_simple_scenario_writer_assigned"
-FRONT_OFFICE_TICKET_ICON = "companyRoot://WebResources/TicketIcons/doc_01.png"
+FRONT_OFFICE_TICKET_ICON_BASE = "companyRoot://WebResources/TicketIcons"
+FRONT_OFFICE_TICKET_ICONS = [
+    "doc_01.png",
+    "doc_08.png",
+    "doc_09.png",
+    "doc_10.png",
+    "doc_11.png",
+    "doc_12.png",
+    "doc_13.png",
+    "doc_14.png",
+    "doc_15.png",
+]
 PHONE_NUMBER = "+61000000000"
 DEFAULT_TEST_RECIPIENTS = ["celeste-demo-gmail@example.com", "celeste-demo-outlook@example.com"]
 SIMULATOR_DOMAIN = "simulator.quadientcloud.com"
@@ -344,7 +355,7 @@ def build_front_office_ticket(config: AppConfig, client: dict[str, Any]) -> dict
         },
         "properties": {
             "properties": {
-                "icon": FRONT_OFFICE_TICKET_ICON,
+                "icon": front_office_ticket_icon(config, client),
                 "title": front_office_ticket_title(config),
                 "description": front_office_ticket_description(config, client),
             }
@@ -384,6 +395,66 @@ def front_office_ticket_description(config: AppConfig, client: dict[str, Any]) -
     if actions:
         description = f"{description}. Actions: {', '.join(human_title(action) for action in actions)}."
     return description
+
+
+def front_office_ticket_icon(config: AppConfig, client: dict[str, Any]) -> str:
+    front_office = mapping_at(config.request, "front_office", required=False)
+    configured_icon = front_office.get("ticket_icon")
+    if isinstance(configured_icon, str) and configured_icon.strip():
+        icon_filename = configured_icon.strip().split("/")[-1]
+        validate_ticket_icon(icon_filename)
+        return ticket_icon_path(icon_filename)
+
+    candidates = icon_candidates_for_request(config)
+    source = "|".join(
+        [
+            template_path(config),
+            ",".join(front_office_production_actions(config)),
+            str(client.get("ClientID", "")),
+            str(client.get("AccountNumber", "")),
+            str(client.get("StatementDate", "")),
+        ]
+    )
+    index = uuid.uuid5(uuid.NAMESPACE_URL, source).int % len(candidates)
+    return ticket_icon_path(candidates[index])
+
+
+def icon_candidates_for_request(config: AppConfig) -> list[str]:
+    template_name = Path(template_path(config)).stem.lower()
+    actions = {action.upper() for action in front_office_production_actions(config)}
+    candidates: list[str] = []
+
+    if "loan" in template_name:
+        candidates.extend(["doc_13.png", "doc_08.png", "doc_01.png"])
+    if "investment" in template_name or "advice" in template_name:
+        candidates.extend(["doc_11.png", "doc_10.png", "doc_14.png"])
+    if "statement" in template_name or "notice" in template_name:
+        candidates.extend(["doc_01.png", "doc_14.png"])
+
+    if "PRINT" in actions:
+        candidates.extend(["doc_01.png", "doc_14.png"])
+    if "EMAIL_WITH_ATTACHMENT" in actions:
+        candidates.extend(["doc_12.png", "doc_15.png"])
+
+    return unique_valid_icons(candidates) or FRONT_OFFICE_TICKET_ICONS
+
+
+def unique_valid_icons(icons: list[str]) -> list[str]:
+    unique_icons = []
+    for icon in icons:
+        if icon in FRONT_OFFICE_TICKET_ICONS and icon not in unique_icons:
+            unique_icons.append(icon)
+    return unique_icons
+
+
+def validate_ticket_icon(icon_filename: str) -> None:
+    if icon_filename not in FRONT_OFFICE_TICKET_ICONS:
+        valid_icons = ", ".join(FRONT_OFFICE_TICKET_ICONS)
+        raise SystemExit(f"Config key 'request.front_office.ticket_icon' must be one of: {valid_icons}.")
+
+
+def ticket_icon_path(icon_filename: str) -> str:
+    return f"{FRONT_OFFICE_TICKET_ICON_BASE}/{icon_filename}"
 
 
 def human_title(value: str) -> str:

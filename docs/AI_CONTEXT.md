@@ -112,6 +112,7 @@ Ticket metadata is derived from that client:
 - `contract.contractName`: full name
 - `properties.properties.title`: template/process display name, derived from the template filename unless `front_office.ticket_title` is configured.
 - `properties.properties.description`: template/process display name plus full name, `ClientID`, and human-readable production actions when present.
+- `properties.properties.icon`: selected from the valid `companyRoot://WebResources/TicketIcons/doc_*.png` set. `front_office.ticket_icon` can force a specific icon; otherwise the script chooses a stable per-client icon from template/action candidates.
 
 `productionActions` is omitted unless `request.front_office.production_actions` contains one or more YAML sequence items. Do not send an empty array.
 
